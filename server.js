@@ -42,7 +42,7 @@ const upload = multer({ storage: storage });
 
 // --- ROUTES ---
 
-// 1. Dashboard Page (Error handling added)
+// 1. Dashboard Page (Robust Error Handling)
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'public', 'index.html');
     
@@ -53,9 +53,18 @@ app.get('/', (req, res) => {
         res.status(404).send(`
             <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
                 <h2 style="color: #e74c3c;">⚠️ Error: index.html not found!</h2>
-                <p>Please create a folder named <b>public</b> inside your project folder.</p>
-                <p>Then place your <b>index.html</b> file inside that <b>public</b> folder.</p>
-                <p>Current Path checked: <code>${indexPath}</code></p>
+                <p>The server cannot find the dashboard file.</p>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; display: inline-block; text-align: left;">
+                    <p><b>Please ensure your folder structure is correct:</b></p>
+                    <pre>
+Project_Folder/
+├── server.js
+├── package.json
+└── public/          <-- Create this folder
+    └── index.html   <-- Put your HTML file here
+                    </pre>
+                </div>
+                <p style="color: #7f8c8d; font-size: 0.9rem;">Server checked path: ${indexPath}</p>
             </div>
         `);
     }
@@ -124,10 +133,9 @@ app.post('/api/settings', (req, res) => {
         dividerFactor: parseFloat(req.body.dividerFactor),
         useServerCalc: true
     };
-    // Force immediate recalculation if we have last sensor data
+    // Force immediate recalculation log
     if (sensorData.rawADC) {
-        // Re-run logic with new settings (simplified trigger)
-        console.log("Recalculating with new settings...");
+        console.log("Settings updated. Values will refresh on next data packet.");
     }
     res.json({ success: true, settings: settings });
 });
