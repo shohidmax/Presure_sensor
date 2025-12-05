@@ -8,78 +8,131 @@ const port = 3000;
 
 // Middleware
 app.use(bodyParser.json());
-app.use(express.static('public')); // 'public' folder e html thakbe
+app.use(express.static('public')); 
 
-// Variable to store latest sensor data
+// --- CALIBRATION SETTINGS (Default) ---
+// এগুলো ড্যাশবোর্ড থেকে পরিবর্তন করা যাবে
+let settings = {
+    cableLength: 79.0,    // ft
+    wellDepth: 110.0,     // ft
+    sensorOffset: 0.5,    // v
+    dividerFactor: 1.5,   // ratio
+    useServerCalc: true   // true = server math, false = esp32 math
+};
+
+// Store latest sensor data
 let sensorData = {
+    rawADC: 0,
     depthToWater: 0,
-    waterCol: 0,
-    waterBelow: 0,
     status: "WAITING",
     fwVer: "0.0.0",
     lastUpdate: "Never"
 };
 
-// Firmware Upload Configuration
+// Firmware Upload Config
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, './uploads/') // Make sure this folder exists
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'firmware.bin') // Always save as firmware.bin
-    }
+    destination: function (req, file, cb) { cb(null, './uploads/') },
+    filename: function (req, file, cb) { cb(null, 'firmware.bin') }
 });
 const upload = multer({ storage: storage });
 
 // --- ROUTES ---
 
-// 1. Dashboard Page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 2. Receive Data from ESP32 (POST)
+// 1. Receive Data from ESP32
 app.post('/api/data', (req, res) => {
-    console.log('Received Data:', req.body);
-    sensorData = req.body;
+    const raw = req.body;
+    
+    // --- SERVER SIDE CALCULATION ---
+    // আমরা ESP32 এর ক্যালকুলেশন ইগনোর করে সার্ভারে নতুন করে হিসাব করব
+    // এতে ড্যাশবোর্ড থেকে ক্যালিব্রেশন করা সহজ হবে
+    
+    if (settings.useServerCalc && raw.rawADC) {
+        // Step 1: Voltage Calculation
+        const pinVolt = raw.rawADC * (3.3 / 4095.0);
+        const actVolt = pinVolt * settings.dividerFactor;
+        
+        // Step 2: Pressure Calculation
+        let validVolt = (actVolt < settings.sensorOffset) ? settings.sensorOffset : actVolt;
+        const pressMPa = (validVolt - settings.sensorOffset) * 0.4;
+        
+        // Step 3: Depth Calculation
+        const waterCol = pressMPa * 334.55;
+        let depthToWater = settings.cableLength - waterCol;
+        if(depthToWater < 0) depthToWater = 0;
+        
+        const waterBelow = settings.wellDepth - settings.cableLength;
+        const totalWaterHeight = waterBelow + waterCol;
+        
+        // Update Sensor Data Object
+        sensorData = {
+            ...raw, // Keep original fwVer etc
+            actVolt: actVolt,
+            pressMPa: pressMPa,
+            waterCol: waterCol,
+            depthToWater: depthToWater,
+            waterBelow: waterBelow,
+            totalWaterHeight: totalWaterHeight,
+            
+            // Send back current settings to UI so we know what was used
+            calibratedWith: settings 
+        };
+    } else {
+        // Use ESP32's values if Server Calc is off
+        sensorData = raw;
+    }
+
     sensorData.lastUpdate = new Date().toLocaleTimeString();
-    res.send('Data Received');
+    sensorData.status = (sensorData.depthToWater > 80) ? "LOW" : "NORMAL";
+    
+    console.log(`Data Updated: Depth ${sensorData.depthToWater.toFixed(1)} ft`);
+    res.send('Data Processed');
 });
 
-// 3. Send Data to Frontend (GET)
+// 2. Send Data to Frontend
 app.get('/api/data', (req, res) => {
     res.json(sensorData);
 });
 
-// 4. Upload Firmware (Admin Panel)
+// 3. Get Current Settings
+app.get('/api/settings', (req, res) => {
+    res.json(settings);
+});
+
+// 4. Update Settings (Calibration)
+app.post('/api/settings', (req, res) => {
+    console.log("New Settings Received:", req.body);
+    settings = {
+        cableLength: parseFloat(req.body.cableLength),
+        wellDepth: parseFloat(req.body.wellDepth),
+        sensorOffset: parseFloat(req.body.sensorOffset),
+        dividerFactor: parseFloat(req.body.dividerFactor),
+        useServerCalc: true
+    };
+    res.json({ success: true, settings: settings });
+});
+
+// 5. Upload Firmware
 app.post('/upload', upload.single('firmware'), (req, res) => {
     console.log("New Firmware Uploaded!");
     res.redirect('/');
 });
 
-// 5. ESP32 OTA Update Endpoint
+// 6. ESP32 OTA Endpoint
 app.get('/update', (req, res) => {
     const firmwarePath = path.join(__dirname, 'uploads', 'firmware.bin');
-    
-    // Check if firmware file exists
     if (fs.existsSync(firmwarePath)) {
-        console.log("ESP32 requesting update...");
-        res.download(firmwarePath, 'firmware.bin', (err) => {
-            if (err) {
-                console.error("Error downloading firmware:", err);
-            }
-        });
+        res.download(firmwarePath, 'firmware.bin');
     } else {
-        res.status(404).send('No firmware update available');
+        res.status(404).send('No update');
     }
 });
 
-// Create uploads folder if not exists
-if (!fs.existsSync('./uploads')){
-    fs.mkdirSync('./uploads');
-}
+if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
-    console.log(`For ESP32, use your PC IP address: http://YOUR_PC_IP:${port}`);
 });
