@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Borewell Admin Center</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+        
+        .col-left { flex: 1; min-width: 300px; max-width: 400px; }
+        .col-right { flex: 2; min-width: 300px; }
+        
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: #2c3e50; margin-top: 0; text-align: center; }
+        h3 { color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        
+        .metric-big { text-align: center; padding: 20px; }
+        .val-big { font-size: 3.5rem; font-weight: bold; color: #2980b9; transition: color 0.3s; }
+        .unit { font-size: 1.2rem; color: #7f8c8d; }
+        
+        .status-ok { color: #27ae60; font-weight: bold; background: #e8f8f5; padding: 5px 10px; border-radius: 20px; }
+        .status-low { color: #c0392b; font-weight: bold; background: #fdedec; padding: 5px 10px; border-radius: 20px; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-box { background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: center; }
+        .stat-label { font-size: 0.85rem; color: #666; margin-bottom: 5px; }
+        .stat-num { font-size: 1.2rem; font-weight: bold; color: #333; }
+
+        /* Animation Styles */
+        .well-container { 
+            position: relative; width: 140px; height: 350px; 
+            border: 4px solid #555; border-top: none; margin: 0 auto; 
+            background: #e0e0e0; border-radius: 0 0 10px 10px; overflow: hidden; 
+        }
+        .ground-line { position: absolute; top: 0; left: -20px; right: -20px; height: 5px; background: #27ae60; z-index: 5; }
+        
+        .sensor-line { 
+            position: absolute; top: 0; left: 50%; width: 3px; background: #333; 
+            transform: translateX(-50%); transition: height 0.5s ease-out; z-index: 3;
+        }
+        .sensor-probe { 
+            position: absolute; left: 50%; width: 20px; height: 30px; 
+            background: #f39c12; border-radius: 4px; transform: translateX(-50%); 
+            bottom: -30px; border: 2px solid #d35400; 
+        }
+
+        .water-fill { 
+            position: absolute; bottom: 0; left: 0; right: 0; 
+            background: rgba(52, 152, 219, 0.85); transition: height 0.5s ease-out; z-index: 2; 
+        }
+
+        /* Form Styles */
+        .form-group { margin-bottom: 10px; text-align: left; }
+        .form-group label { display: block; font-size: 0.9rem; color: #666; margin-bottom: 5px; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        .btn-save { background: #27ae60; color: white; width: 100%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
+        .btn-save:hover { background: #219150; }
+        
+        /* Upload Form */
+        .upload-area { border: 2px dashed #bdc3c7; padding: 20px; border-radius: 10px; text-align: center; }
+        .btn-upload { background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- Left Column: Animation -->
+    <div class="col-left">
+        <div class="card" style="text-align:center;">
+            <h2>💧 Monitor</h2>
+            <div id="connectionStatus" style="font-size:0.8rem; color:#aaa; margin-bottom:5px;">Connecting...</div>
+            <div id="demoBadge" style="display:none; background:#ffeeba; color:#856404; padding:5px; margin-bottom:10px; border-radius:5px; font-size:0.8rem;">Demo Mode (Server Offline)</div>
+            
+            <div class="well-container">
+                <div class="ground-line"></div>
+                <!-- Sensor -->
+                <div id="sensorLine" class="sensor-line">
+                    <div class="sensor-probe"></div>
+                </div>
+                <!-- Water -->
+                <div id="waterFill" class="water-fill"></div>
+            </div>
+            <p style="color:#777; font-size:0.9rem; margin-top:10px;">
+                Sensor Depth: <b id="visCable">--</b> ft
+            </p>
+        </div>
+
+        <div class="card">
+             <h3>System Status</h3>
+             <div class="grid-2">
+                <div class="stat-box">
+                    <div class="stat-label">Last Update</div>
+                    <div id="timeVal" style="font-size:0.8rem;">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Firmware</div>
+                    <div id="fwVer" style="color:#e67e22;">--</div>
+                </div>
+             </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Metrics & Calibration -->
+    <div class="col-right">
+        
+        <!-- Main Metric -->
+        <div class="card metric-big">
+            <div style="color:#666; margin-bottom:10px;">Water Level (From Ground)</div>
+            <div id="depthVal" class="val-big">--</div>
+            <div class="unit">Feet Below Ground</div>
+            <div style="margin-top:15px;"><span id="statusVal" class="status-ok">--</span></div>
+        </div>
+
+        <!-- Details -->
+        <div class="card">
+            <div class="grid-2">
+                <div class="stat-box">
+                    <div class="stat-label">Water ABOVE Sensor</div>
+                    <div id="aboveVal" class="stat-num" style="color:#27ae60;">--</div>
+                    <div class="unit">ft</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Water BELOW Sensor</div>
+                    <div id="belowVal" class="stat-num" style="color:#8e44ad;">--</div>
+                    <div class="unit">ft</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calibration Form -->
+        <div class="card" style="border-left: 5px solid #27ae60;">
+            <h3>⚙️ Live Calibration (Server Side)</h3>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Sensor Cable Length (ft)</label>
+                    <input type="number" id="cal_cable" step="0.1" value="79.0">
+                </div>
+                <div class="form-group">
+                    <label>Total Well Depth (ft)</label>
+                    <input type="number" id="cal_well" step="0.1" value="110.0">
+                </div>
+                <div class="form-group">
+                    <label>Voltage Divider Factor</label>
+                    <input type="number" id="cal_div" step="0.1" value="1.5">
+                </div>
+                <div class="form-group">
+                    <label>Sensor Offset (V)</label>
+                    <input type="number" id="cal_offset" step="0.01" value="0.5">
+                </div>
+            </div>
+            <button class="btn-save" onclick="saveSettings()">Update & Recalculate</button>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="card">
+            <h3>Technical Diagnostics</h3>
+            <div class="grid-2">
+                <div class="stat-box"><div>Pressure</div><b id="pressure" style="color:#c0392b;">--</b> MPa</div>
+                <div class="stat-box"><div>Calc Voltage</div><b id="voltage">--</b> V</div>
+                <div class="stat-box"><div>Raw ADC</div><b id="adc">--</b></div>
+                <div class="stat-box"><div>Signal</div><b>Good</b></div>
+            </div>
+        </div>
+
+        <!-- OTA Upload -->
+        <div class="card">
+            <h3>🚀 Remote Firmware Update</h3>
+            <!-- Pointing directly to Live Server URL for Upload -->
+            <form action="https://presure-sensor.onrender.com/upload" method="POST" enctype="multipart/form-data" class="upload-area">
+                <input type="file" name="firmware" accept=".bin" required>
+                <button type="submit" class="btn-upload">Upload & Flash</button>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // LIVE SERVER URL
+    const API_BASE = "https://presure-sensor.onrender.com";
+
+    // --- SETTINGS MANAGEMENT ---
+    function loadSettings() {
+        const defaults = { cableLength: 79.0, wellDepth: 110.0, dividerFactor: 1.5, sensorOffset: 0.5 };
+        
+        fetch(`${API_BASE}/api/settings`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('cal_cable').value = data.cableLength;
+                document.getElementById('cal_well').value = data.wellDepth;
+                document.getElementById('cal_div').value = data.dividerFactor;
+                document.getElementById('cal_offset').value = data.sensorOffset;
+            })
+            .catch(err => {
+                console.log("Settings Load Failed (Using Defaults):", err);
+                // Fallback to defaults if fetch fails
+                document.getElementById('cal_cable').value = defaults.cableLength;
+                document.getElementById('cal_well').value = defaults.wellDepth;
+                document.getElementById('cal_div').value = defaults.dividerFactor;
+                document.getElementById('cal_offset').value = defaults.sensorOffset;
+            });
+    }
+
+    function saveSettings() {
+        const payload = {
+            cableLength: document.getElementById('cal_cable').value,
+            wellDepth: document.getElementById('cal_well').value,
+            dividerFactor: document.getElementById('cal_div').value,
+            sensorOffset: document.getElementById('cal_offset').value
+        };
+
+        fetch(`${API_BASE}/api/settings`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert("Settings Saved to Live Server!");
+            updateDashboard(); 
+        })
+        .catch(err => {
+            alert("Error saving settings. Check internet or server.");
+            console.error(err);
+        });
+    }
+
+    // --- DASHBOARD LOGIC ---
+    function updateDashboard() {
+        // Mock Data for Demo (Fallback)
+        const mockData = {
+            depthToWater: 45.5, waterCol: 33.5, waterBelow: 31.0,
+            fwVer: "1.3.3", pressMPa: 0.100, actVolt: 0.75, rawADC: 980,
+            lastUpdate: "Demo Time", status: "NORMAL",
+            calibratedWith: { cableLength: 79, wellDepth: 110, totalWaterHeight: 64.5 }
+        };
+
+        fetch(`${API_BASE}/api/data`)
+            .then(res => {
+                if (!res.ok) throw new Error("Offline");
+                return res.json();
+            })
+            .then(data => {
+                document.getElementById('demoBadge').style.display = 'none';
+                document.getElementById('connectionStatus').innerText = "Connected to Live Server";
+                document.getElementById('connectionStatus').style.color = "green";
+                renderUI(data);
+            })
+            .catch(err => {
+                document.getElementById('demoBadge').style.display = 'block';
+                document.getElementById('connectionStatus').innerText = "Connection Failed - Retrying...";
+                document.getElementById('connectionStatus').style.color = "red";
+                // Show mock animation in preview
+                mockData.depthToWater += (Math.random() - 0.5);
+                renderUI(mockData);
+            });
+    }
+
+    function renderUI(data) {
+        if(!data) return;
+
+        // Use calibrated values if available, else defaults
+        const cableLen = data.calibratedWith ? data.calibratedWith.cableLength : 79;
+        const wellDepth = data.calibratedWith ? data.calibratedWith.wellDepth : 110;
+        const totalWater = data.totalWaterHeight || (wellDepth - data.depthToWater);
+
+        // Update Text
+        setText('depthVal', data.depthToWater ? data.depthToWater.toFixed(1) : "--");
+        setText('aboveVal', data.waterCol ? data.waterCol.toFixed(1) : "--");
+        setText('belowVal', data.waterBelow ? data.waterBelow.toFixed(1) : "--");
+        setText('fwVer', 'v' + (data.fwVer || "0.0"));
+        setText('pressure', data.pressMPa ? data.pressMPa.toFixed(3) : "--");
+        setText('voltage', data.actVolt ? data.actVolt.toFixed(2) : "--");
+        setText('adc', data.rawADC || "--");
+        setText('timeVal', data.lastUpdate || "--");
+        setText('visCable', cableLen);
+
+        const st = document.getElementById('statusVal');
+        if (st) {
+            st.innerText = (data.status === "LOW") ? "⚠️ LOW WATER LEVEL" : "✅ NORMAL LEVEL";
+            st.className = (data.status === "LOW") ? "status-low" : "status-ok";
+        }
+
+        // --- ANIMATION ---
+        const wellHeightPx = 350; 
+        const scale = wellHeightPx / wellDepth; 
+
+        // 1. Sensor Pos
+        const sensorPx = Math.min(cableLen * scale, wellHeightPx);
+        document.getElementById('sensorLine').style.height = sensorPx + 'px';
+
+        // 2. Water Level
+        const waterPx = Math.min(totalWater * scale, wellHeightPx);
+        document.getElementById('waterFill').style.height = waterPx + 'px';
+    }
+
+    function setText(id, val) {
+        const el = document.getElementById(id);
+        if(el) el.innerText = val;
+    }
+
+    // Init
+    loadSettings();
+    setInterval(updateDashboard, 2000); // Check every 2 seconds
+    updateDashboard();
+</script>
+
+</body>
+</html>
