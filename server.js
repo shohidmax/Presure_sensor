@@ -3,21 +3,22 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors'); // New Package
 const app = express();
 const port = 3000;
 
 // Middleware
+app.use(cors()); // Enable CORS for remote access (Dashboard/Preview)
 app.use(bodyParser.json());
 app.use(express.static('public')); 
 
 // --- CALIBRATION SETTINGS (Default) ---
-// এগুলো ড্যাশবোর্ড থেকে পরিবর্তন করা যাবে
 let settings = {
     cableLength: 79.0,    // ft
     wellDepth: 110.0,     // ft
     sensorOffset: 0.5,    // v
     dividerFactor: 1.5,   // ratio
-    useServerCalc: true   // true = server math, false = esp32 math
+    useServerCalc: true
 };
 
 // Store latest sensor data
@@ -31,7 +32,10 @@ let sensorData = {
 
 // Firmware Upload Config
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) { cb(null, './uploads/') },
+    destination: function (req, file, cb) { 
+        if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
+        cb(null, './uploads/') 
+    },
     filename: function (req, file, cb) { cb(null, 'firmware.bin') }
 });
 const upload = multer({ storage: storage });
@@ -46,20 +50,16 @@ app.get('/', (req, res) => {
 app.post('/api/data', (req, res) => {
     const raw = req.body;
     
-    // --- SERVER SIDE CALCULATION ---
-    // আমরা ESP32 এর ক্যালকুলেশন ইগনোর করে সার্ভারে নতুন করে হিসাব করব
-    // এতে ড্যাশবোর্ড থেকে ক্যালিব্রেশন করা সহজ হবে
-    
     if (settings.useServerCalc && raw.rawADC) {
-        // Step 1: Voltage Calculation
+        // Step 1: Voltage
         const pinVolt = raw.rawADC * (3.3 / 4095.0);
         const actVolt = pinVolt * settings.dividerFactor;
         
-        // Step 2: Pressure Calculation
+        // Step 2: Pressure
         let validVolt = (actVolt < settings.sensorOffset) ? settings.sensorOffset : actVolt;
         const pressMPa = (validVolt - settings.sensorOffset) * 0.4;
         
-        // Step 3: Depth Calculation
+        // Step 3: Depth
         const waterCol = pressMPa * 334.55;
         let depthToWater = settings.cableLength - waterCol;
         if(depthToWater < 0) depthToWater = 0;
@@ -67,28 +67,24 @@ app.post('/api/data', (req, res) => {
         const waterBelow = settings.wellDepth - settings.cableLength;
         const totalWaterHeight = waterBelow + waterCol;
         
-        // Update Sensor Data Object
         sensorData = {
-            ...raw, // Keep original fwVer etc
+            ...raw,
             actVolt: actVolt,
             pressMPa: pressMPa,
             waterCol: waterCol,
             depthToWater: depthToWater,
             waterBelow: waterBelow,
             totalWaterHeight: totalWaterHeight,
-            
-            // Send back current settings to UI so we know what was used
             calibratedWith: settings 
         };
     } else {
-        // Use ESP32's values if Server Calc is off
         sensorData = raw;
     }
 
     sensorData.lastUpdate = new Date().toLocaleTimeString();
     sensorData.status = (sensorData.depthToWater > 80) ? "LOW" : "NORMAL";
     
-    console.log(`Data Updated: Depth ${sensorData.depthToWater.toFixed(1)} ft`);
+    console.log(`Data Updated: Depth ${sensorData.depthToWater ? sensorData.depthToWater.toFixed(1) : 0} ft`);
     res.send('Data Processed');
 });
 
@@ -97,14 +93,14 @@ app.get('/api/data', (req, res) => {
     res.json(sensorData);
 });
 
-// 3. Get Current Settings
+// 3. Get Settings
 app.get('/api/settings', (req, res) => {
     res.json(settings);
 });
 
-// 4. Update Settings (Calibration)
+// 4. Update Settings
 app.post('/api/settings', (req, res) => {
-    console.log("New Settings Received:", req.body);
+    console.log("New Settings:", req.body);
     settings = {
         cableLength: parseFloat(req.body.cableLength),
         wellDepth: parseFloat(req.body.wellDepth),
@@ -121,7 +117,7 @@ app.post('/upload', upload.single('firmware'), (req, res) => {
     res.redirect('/');
 });
 
-// 6. ESP32 OTA Endpoint
+// 6. OTA Endpoint
 app.get('/update', (req, res) => {
     const firmwarePath = path.join(__dirname, 'uploads', 'firmware.bin');
     if (fs.existsSync(firmwarePath)) {
@@ -131,8 +127,9 @@ app.get('/update', (req, res) => {
     }
 });
 
+// Ensure uploads directory
 if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running on port ${port}`);
 });
