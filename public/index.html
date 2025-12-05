@@ -71,15 +71,11 @@
         <div class="card" style="text-align:center;">
             <h2>💧 Monitor</h2>
             <div id="connectionStatus" style="font-size:0.8rem; color:#aaa; margin-bottom:5px;">Connecting...</div>
-            <div id="demoBadge" style="display:none; background:#ffeeba; color:#856404; padding:5px; margin-bottom:10px; border-radius:5px; font-size:0.8rem;">Demo Mode (Server Offline)</div>
+            <div id="demoBadge" style="display:none; background:#ffeeba; color:#856404; padding:5px; margin-bottom:10px; border-radius:5px; font-size:0.8rem;">Demo Mode</div>
             
             <div class="well-container">
                 <div class="ground-line"></div>
-                <!-- Sensor -->
-                <div id="sensorLine" class="sensor-line">
-                    <div class="sensor-probe"></div>
-                </div>
-                <!-- Water -->
+                <div id="sensorLine" class="sensor-line"><div class="sensor-probe"></div></div>
                 <div id="waterFill" class="water-fill"></div>
             </div>
             <p style="color:#777; font-size:0.9rem; margin-top:10px;">
@@ -90,22 +86,14 @@
         <div class="card">
              <h3>System Status</h3>
              <div class="grid-2">
-                <div class="stat-box">
-                    <div class="stat-label">Last Update</div>
-                    <div id="timeVal" style="font-size:0.8rem;">--</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Firmware</div>
-                    <div id="fwVer" style="color:#e67e22;">--</div>
-                </div>
+                <div class="stat-box"><div>Last Update</div><div id="timeVal" style="font-size:0.8rem;">--</div></div>
+                <div class="stat-box"><div>Firmware</div><div id="fwVer" style="color:#e67e22;">--</div></div>
              </div>
         </div>
     </div>
 
     <!-- Right Column: Metrics & Calibration -->
     <div class="col-right">
-        
-        <!-- Main Metric -->
         <div class="card metric-big">
             <div style="color:#666; margin-bottom:10px;">Water Level (From Ground)</div>
             <div id="depthVal" class="val-big">--</div>
@@ -113,47 +101,24 @@
             <div style="margin-top:15px;"><span id="statusVal" class="status-ok">--</span></div>
         </div>
 
-        <!-- Details -->
         <div class="card">
             <div class="grid-2">
-                <div class="stat-box">
-                    <div class="stat-label">Water ABOVE Sensor</div>
-                    <div id="aboveVal" class="stat-num" style="color:#27ae60;">--</div>
-                    <div class="unit">ft</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Water BELOW Sensor</div>
-                    <div id="belowVal" class="stat-num" style="color:#8e44ad;">--</div>
-                    <div class="unit">ft</div>
-                </div>
+                <div class="stat-box"><div>Water ABOVE Sensor</div><div id="aboveVal" class="stat-num" style="color:#27ae60;">--</div><div class="unit">ft</div></div>
+                <div class="stat-box"><div>Water BELOW Sensor</div><div id="belowVal" class="stat-num" style="color:#8e44ad;">--</div><div class="unit">ft</div></div>
             </div>
         </div>
 
-        <!-- Calibration Form -->
         <div class="card" style="border-left: 5px solid #27ae60;">
             <h3>⚙️ Live Calibration (Server Side)</h3>
             <div class="grid-2">
-                <div class="form-group">
-                    <label>Sensor Cable Length (ft)</label>
-                    <input type="number" id="cal_cable" step="0.1" value="79.0">
-                </div>
-                <div class="form-group">
-                    <label>Total Well Depth (ft)</label>
-                    <input type="number" id="cal_well" step="0.1" value="110.0">
-                </div>
-                <div class="form-group">
-                    <label>Voltage Divider Factor</label>
-                    <input type="number" id="cal_div" step="0.1" value="1.5">
-                </div>
-                <div class="form-group">
-                    <label>Sensor Offset (V)</label>
-                    <input type="number" id="cal_offset" step="0.01" value="0.5">
-                </div>
+                <div class="form-group"><label>Sensor Cable Length (ft)</label><input type="number" id="cal_cable" step="0.1" value="79.0"></div>
+                <div class="form-group"><label>Total Well Depth (ft)</label><input type="number" id="cal_well" step="0.1" value="110.0"></div>
+                <div class="form-group"><label>Voltage Divider Factor</label><input type="number" id="cal_div" step="0.1" value="1.5"></div>
+                <div class="form-group"><label>Sensor Offset (V)</label><input type="number" id="cal_offset" step="0.01" value="0.5"></div>
             </div>
             <button class="btn-save" onclick="saveSettings()">Update & Recalculate</button>
         </div>
 
-        <!-- Diagnostics -->
         <div class="card">
             <h3>Technical Diagnostics</h3>
             <div class="grid-2">
@@ -164,16 +129,13 @@
             </div>
         </div>
 
-        <!-- OTA Upload -->
         <div class="card">
             <h3>🚀 Remote Firmware Update</h3>
-            <!-- Pointing directly to Live Server URL for Upload -->
             <form action="https://presure-sensor.onrender.com/upload" method="POST" enctype="multipart/form-data" class="upload-area">
                 <input type="file" name="firmware" accept=".bin" required>
                 <button type="submit" class="btn-upload">Upload & Flash</button>
             </form>
         </div>
-
     </div>
 </div>
 
@@ -195,7 +157,6 @@
             })
             .catch(err => {
                 console.log("Settings Load Failed (Using Defaults):", err);
-                // Fallback to defaults if fetch fails
                 document.getElementById('cal_cable').value = defaults.cableLength;
                 document.getElementById('cal_well').value = defaults.wellDepth;
                 document.getElementById('cal_div').value = defaults.dividerFactor;
@@ -221,22 +182,11 @@
             alert("Settings Saved to Live Server!");
             updateDashboard(); 
         })
-        .catch(err => {
-            alert("Error saving settings. Check internet or server.");
-            console.error(err);
-        });
+        .catch(err => alert("Error saving settings. Check internet or server."));
     }
 
     // --- DASHBOARD LOGIC ---
     function updateDashboard() {
-        // Mock Data for Demo (Fallback)
-        const mockData = {
-            depthToWater: 45.5, waterCol: 33.5, waterBelow: 31.0,
-            fwVer: "1.3.3", pressMPa: 0.100, actVolt: 0.75, rawADC: 980,
-            lastUpdate: "Demo Time", status: "NORMAL",
-            calibratedWith: { cableLength: 79, wellDepth: 110, totalWaterHeight: 64.5 }
-        };
-
         fetch(`${API_BASE}/api/data`)
             .then(res => {
                 if (!res.ok) throw new Error("Offline");
@@ -250,11 +200,9 @@
             })
             .catch(err => {
                 document.getElementById('demoBadge').style.display = 'block';
-                document.getElementById('connectionStatus').innerText = "Connection Failed - Retrying...";
+                document.getElementById('connectionStatus').innerText = "Connection Failed";
                 document.getElementById('connectionStatus').style.color = "red";
-                // Show mock animation in preview
-                mockData.depthToWater += (Math.random() - 0.5);
-                renderUI(mockData);
+                // Don't modify UI if offline to avoid confusion, or use last known data
             });
     }
 
@@ -266,14 +214,20 @@
         const wellDepth = data.calibratedWith ? data.calibratedWith.wellDepth : 110;
         const totalWater = data.totalWaterHeight || (wellDepth - data.depthToWater);
 
-        // Update Text
-        setText('depthVal', data.depthToWater ? data.depthToWater.toFixed(1) : "--");
-        setText('aboveVal', data.waterCol ? data.waterCol.toFixed(1) : "--");
-        setText('belowVal', data.waterBelow ? data.waterBelow.toFixed(1) : "--");
+        // Helper to check valid number (including 0)
+        const isValid = (val) => (val !== undefined && val !== null);
+
+        // Update Text - NOW HANDLES 0 CORRECTLY
+        setText('depthVal', isValid(data.depthToWater) ? data.depthToWater.toFixed(1) : "--");
+        setText('aboveVal', isValid(data.waterCol) ? data.waterCol.toFixed(1) : "--");
+        setText('belowVal', isValid(data.waterBelow) ? data.waterBelow.toFixed(1) : "--");
         setText('fwVer', 'v' + (data.fwVer || "0.0"));
-        setText('pressure', data.pressMPa ? data.pressMPa.toFixed(3) : "--");
-        setText('voltage', data.actVolt ? data.actVolt.toFixed(2) : "--");
-        setText('adc', data.rawADC || "--");
+        
+        // PRESSURE FIX: Show 0.000 instead of --
+        setText('pressure', isValid(data.pressMPa) ? data.pressMPa.toFixed(3) : "--");
+        
+        setText('voltage', isValid(data.actVolt) ? data.actVolt.toFixed(2) : "--");
+        setText('adc', isValid(data.rawADC) ? data.rawADC : "--");
         setText('timeVal', data.lastUpdate || "--");
         setText('visCable', cableLen);
 
@@ -303,7 +257,7 @@
 
     // Init
     loadSettings();
-    setInterval(updateDashboard, 2000); // Check every 2 seconds
+    setInterval(updateDashboard, 2000); 
     updateDashboard();
 </script>
 
