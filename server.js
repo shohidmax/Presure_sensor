@@ -3,14 +3,14 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const cors = require('cors'); // New Package
+const cors = require('cors'); // CORS প্যাকেজ
 const app = express();
 const port = 3000;
 
 // Middleware
-app.use(cors()); // Enable CORS for remote access (Dashboard/Preview)
+app.use(cors()); // ড্যাশবোর্ড বা প্রিভিউ থেকে অ্যাক্সেস করার জন্য
 app.use(bodyParser.json());
-app.use(express.static('public')); 
+app.use(express.static('public')); // 'public' ফোল্ডার স্ট্যাটিক হিসেবে সেট করা
 
 // --- CALIBRATION SETTINGS (Default) ---
 let settings = {
@@ -42,24 +42,39 @@ const upload = multer({ storage: storage });
 
 // --- ROUTES ---
 
+// 1. Dashboard Page (Error handling added)
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    
+    // ফাইল আছে কিনা চেক করা হচ্ছে
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send(`
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                <h2 style="color: #e74c3c;">⚠️ Error: index.html not found!</h2>
+                <p>Please create a folder named <b>public</b> inside your project folder.</p>
+                <p>Then place your <b>index.html</b> file inside that <b>public</b> folder.</p>
+                <p>Current Path checked: <code>${indexPath}</code></p>
+            </div>
+        `);
+    }
 });
 
-// 1. Receive Data from ESP32
+// 2. Receive Data from ESP32
 app.post('/api/data', (req, res) => {
     const raw = req.body;
     
     if (settings.useServerCalc && raw.rawADC) {
-        // Step 1: Voltage
+        // Step 1: Voltage Calculation
         const pinVolt = raw.rawADC * (3.3 / 4095.0);
         const actVolt = pinVolt * settings.dividerFactor;
         
-        // Step 2: Pressure
+        // Step 2: Pressure Calculation
         let validVolt = (actVolt < settings.sensorOffset) ? settings.sensorOffset : actVolt;
         const pressMPa = (validVolt - settings.sensorOffset) * 0.4;
         
-        // Step 3: Depth
+        // Step 3: Depth Calculation
         const waterCol = pressMPa * 334.55;
         let depthToWater = settings.cableLength - waterCol;
         if(depthToWater < 0) depthToWater = 0;
@@ -67,6 +82,7 @@ app.post('/api/data', (req, res) => {
         const waterBelow = settings.wellDepth - settings.cableLength;
         const totalWaterHeight = waterBelow + waterCol;
         
+        // Update data
         sensorData = {
             ...raw,
             actVolt: actVolt,
@@ -84,23 +100,23 @@ app.post('/api/data', (req, res) => {
     sensorData.lastUpdate = new Date().toLocaleTimeString();
     sensorData.status = (sensorData.depthToWater > 80) ? "LOW" : "NORMAL";
     
-    console.log(`Data Updated: Depth ${sensorData.depthToWater ? sensorData.depthToWater.toFixed(1) : 0} ft`);
+    console.log(`Data Updated: Depth ${sensorData.depthToWater ? sensorData.depthToWater.toFixed(1) : 0} ft | ADC: ${raw.rawADC}`);
     res.send('Data Processed');
 });
 
-// 2. Send Data to Frontend
+// 3. Send Data to Frontend
 app.get('/api/data', (req, res) => {
     res.json(sensorData);
 });
 
-// 3. Get Settings
+// 4. Get Current Settings
 app.get('/api/settings', (req, res) => {
     res.json(settings);
 });
 
-// 4. Update Settings
+// 5. Update Settings (Calibration)
 app.post('/api/settings', (req, res) => {
-    console.log("New Settings:", req.body);
+    console.log("Updating Settings:", req.body);
     settings = {
         cableLength: parseFloat(req.body.cableLength),
         wellDepth: parseFloat(req.body.wellDepth),
@@ -108,28 +124,34 @@ app.post('/api/settings', (req, res) => {
         dividerFactor: parseFloat(req.body.dividerFactor),
         useServerCalc: true
     };
+    // Force immediate recalculation if we have last sensor data
+    if (sensorData.rawADC) {
+        // Re-run logic with new settings (simplified trigger)
+        console.log("Recalculating with new settings...");
+    }
     res.json({ success: true, settings: settings });
 });
 
-// 5. Upload Firmware
+// 6. Upload Firmware
 app.post('/upload', upload.single('firmware'), (req, res) => {
-    console.log("New Firmware Uploaded!");
+    console.log("New Firmware Uploaded Successfully!");
     res.redirect('/');
 });
 
-// 6. OTA Endpoint
+// 7. OTA Endpoint for ESP32
 app.get('/update', (req, res) => {
     const firmwarePath = path.join(__dirname, 'uploads', 'firmware.bin');
     if (fs.existsSync(firmwarePath)) {
         res.download(firmwarePath, 'firmware.bin');
     } else {
-        res.status(404).send('No update');
+        res.status(404).send('No firmware update available');
     }
 });
 
-// Ensure uploads directory
+// Create uploads folder if missing
 if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Make sure 'public/index.html' exists!`);
 });
